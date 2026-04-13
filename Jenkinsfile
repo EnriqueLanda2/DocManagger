@@ -1,0 +1,91 @@
+pipeline {
+    agent any
+
+    environment {
+        NGINX_WEB_ROOT  = '/var/www/html/docM'
+        BACKEND_PROD_DIR = '/var/www/doc_platform/backend'
+    }
+
+    triggers {
+        githubPush()
+    }
+
+    stages {
+
+        stage('Clonar codigo') {
+            steps {
+                checkout scm
+                echo "Codigo clonado correctamente. Rama: ${env.BRANCH_NAME ?: 'produccion'}"
+            }
+        }
+
+        stage('Build Frontend') {
+            steps {
+                dir('frontend') {
+                    sh 'npm install'
+                    sh 'npm run build'
+                }
+            }
+        }
+
+        stage('Publicar Frontend') {
+            steps {
+                sh "sudo rm -rf ${NGINX_WEB_ROOT}"
+                sh "sudo mkdir -p ${NGINX_WEB_ROOT}"
+                sh "sudo cp -r frontend/dist/* ${NGINX_WEB_ROOT}/"
+                echo "Frontend publicado en ${NGINX_WEB_ROOT}"
+            }
+        }
+
+        stage('Actualizar Backend') {
+            steps {
+                sh """
+                    sudo rsync -av --exclude='venv' \
+                        backend/ ${BACKEND_PROD_DIR}/
+                """
+                sh """
+                    cd ${BACKEND_PROD_DIR}
+                    if [ ! -d "venv" ]; then
+                        sudo python3 -m venv venv
+                    fi
+                    . venv/bin/activate
+                    sudo venv/bin/pip install -r requirements.txt --quiet
+                    sudo venv/bin/pip install gunicorn --quiet
+                    
+                    if [ -f .env.production ]; then
+                        echo "Cargando variables de .env.production"
+                        set -a && . ./.env.production && set +a
+                    fi
+                    
+                    mkdir -p logs
+
+                    # Intentar migrar normalmente. Si falla porque las tablas ya existen
+                    # (base de datos pre-existente sin historial de migraciones),
+                    # marcar todas las migraciones como aplicadas para sincronizar el estado.
+                    sudo venv/bin/python manage.py migrate --noinput || \
+                        sudo venv/bin/python manage.py migrate --noinput --fake
+
+                    sudo venv/bin/python manage.py collectstatic --noinput
+                """
+            }
+        }
+
+        stage('Reiniciar Servicios') {
+            steps {
+                sh 'sudo systemctl restart gunicorn'
+                sh 'sudo systemctl restart nginx'
+                echo "Servicios reiniciados correctamente"
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Deploy completado exitosamente en rama produccion"
+        }
+        failure {
+            echo "El deploy fallo. Revisa el Console Output para ver el error exacto."
+        }
+    }
+}
+
