@@ -1,8 +1,6 @@
 import os
 from pathlib import Path
 from dotenv import load_dotenv
-import pymysql
-pymysql.install_as_MySQLdb()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -14,7 +12,7 @@ if not env_path.exists():
 load_dotenv(env_path)
 
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-default-key-for-dev-purposes-only')
-FERNET_KEY = os.environ.get('FERNET_KEY', 'c2VjcmV0LWtleS1mb3ItZGV2LW9ubHktMzItY2hhcg==')
+FERNET_KEY = os.environ.get('FERNET_KEY', 'gxl7P7j623WDqHjs1xoTODF5WxXW4mfLerRhMYTDdeg=')
 
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
