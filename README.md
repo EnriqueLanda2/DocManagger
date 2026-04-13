@@ -1,120 +1,216 @@
-\# Document Management Platform (DocManager)
+# DocManagger
 
+Plataforma de gestión de documentos colaborativa. Permite crear, editar, compartir y versionar documentos en tiempo real.
 
+**Stack:** Django 5 (backend) + React 19 + Vite (frontend) + MySQL
 
-Este proyecto consta de dos partes: Backend (Django) y Frontend (React).
+---
 
+## Requisitos previos
 
+- Python 3.10 o superior
+- Node.js 18 o superior y npm
+- MySQL 8 corriendo localmente
 
-\## Requisitos previos
+---
 
+## Instalación
 
+### 1. Clonar el repositorio
 
-\- Python 3.x
+```bash
+git clone https://github.com/EnriqueLanda2/DocManagger.git
+cd DocManagger
+```
 
-\- Node.js y npm
+---
 
+### 2. Backend (Django)
 
+```bash
+cd backend
+```
 
-\## Instrucciones de Ejecución
+**Crear y activar el entorno virtual:**
 
+```bash
+python -m venv venv
 
+# macOS / Linux
+source venv/bin/activate
 
-Debes abrir dos terminales separadas, una para el backend y otra para el frontend.
+# Windows
+venv\Scripts\activate
+```
 
+**Instalar dependencias:**
 
+```bash
+pip install -r requirements.txt
+```
 
-\### Terminal 1: Backend (Django)
+**Configurar variables de entorno:**
 
+```bash
+cp .env.example .env
+```
 
+Abre `backend/.env` y edita la contraseña de MySQL:
 
-1\. Navega a la carpeta del backend:
+```
+DB_PASSWORD=tu_password_de_mysql
+```
 
-&#x20;  ```bash
+> El resto de valores ya están configurados para desarrollo local. No toques nada más si solo quieres correrlo en local.
 
-&#x20;  cd doc\_platform/backend
+**Crear la base de datos en MySQL:**
 
-&#x20;  ```
+```sql
+CREATE DATABASE doc_platform_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
 
+**Aplicar migraciones:**
 
+```bash
+python manage.py migrate
+```
 
-2\. Activa el entorno virtual:
+**Crear superusuario (opcional):**
 
-&#x20;  ```bash
+```bash
+python manage.py createsuperuser
+```
 
-&#x20;  source venv/bin/activate
+**Levantar el servidor:**
 
-&#x20;  ```
+```bash
+python manage.py runserver
+```
 
+El backend corre en: `http://127.0.0.1:8000/`
 
+---
 
-3\. Ejecuta el servidor:
+### 3. Frontend (React)
 
-&#x20;  ```bash
+Abre una nueva terminal:
 
-&#x20;  python manage.py runserver
+```bash
+cd frontend
+```
 
-&#x20;  ```
+**Configurar variables de entorno:**
 
-&#x20;  
+```bash
+cp .env.example .env
+```
 
-&#x20;  El backend correrá en: http://127.0.0.1:8000/
+> El `.env` del frontend ya apunta a `http://127.0.0.1:8000/api` por defecto. No necesitas cambiar nada para local.
 
+**Instalar dependencias:**
 
+```bash
+npm install
+```
 
-\### Terminal 2: Frontend (React)
+**Levantar el servidor de desarrollo:**
 
+```bash
+npm run dev
+```
 
+El frontend corre en: `http://localhost:5173/`
 
-1\. Navega a la carpeta del frontend:
+---
 
-&#x20;  ```bash
+## Variables de entorno
 
-&#x20;  cd doc\_platform/frontend
+### `backend/.env`
 
-&#x20;  ```
+| Variable | Descripción | Default local |
+|---|---|---|
+| `DEBUG` | Modo debug de Django | `True` |
+| `SECRET_KEY` | Clave secreta de Django | valor de dev (inseguro) |
+| `FERNET_KEY` | Clave para cifrado de datos | valor de dev |
+| `ALLOWED_HOSTS` | Hosts permitidos | `127.0.0.1,localhost` |
+| `CORS_ALLOW_ALL_ORIGINS` | Permitir todos los orígenes CORS | `True` |
+| `DB_NAME` | Nombre de la base de datos | `doc_platform_db` |
+| `DB_USER` | Usuario de MySQL | `root` |
+| `DB_PASSWORD` | Contraseña de MySQL | *(debes rellenarla)* |
+| `DB_HOST` | Host de MySQL | `127.0.0.1` |
+| `DB_PORT` | Puerto de MySQL | `3306` |
 
+### `frontend/.env`
 
+| Variable | Descripción | Default local |
+|---|---|---|
+| `VITE_API_URL` | URL base del backend | `http://127.0.0.1:8000/api` |
 
-2\. Instala las dependencias (si no lo has hecho):
+---
 
-&#x20;  ```bash
+## Correr tests
 
-&#x20;  npm install
+### Backend
 
-&#x20;  ```
+```bash
+cd backend
+source venv/bin/activate   # si no está activado
+pytest
+```
 
-&#x20;  \*Nota: Si tienes errores de permisos con npm, intenta usar este comando para limpiar caché local:\*
+Con reporte de cobertura:
 
-&#x20;  `export npm\_config\_cache=../.npm\_cache \&\& npm install`
+```bash
+pytest --cov=core --cov-report=term-missing
+```
 
+### Frontend
 
+```bash
+cd frontend
+npm run test
+```
 
-3\. Ejecuta el servidor de desarrollo:
+Con cobertura:
 
-&#x20;  ```bash
+```bash
+npm run test:coverage
+```
 
-&#x20;  npm run dev
+---
 
-&#x20;  ```
+## Estructura del proyecto
 
-&#x20;  \*Nota: Si tuviste errores de permisos antes, usa:\*
+```
+DocManagger/
+├── backend/
+│   ├── core/               # App principal (modelos, vistas, serializers)
+│   │   ├── authentication/ # Endpoints de autenticación
+│   │   └── migrations/     # Migraciones de la base de datos
+│   ├── doc_platform/       # Configuración de Django (settings, urls)
+│   ├── .env                # Variables de entorno locales (no se sube a git)
+│   ├── .env.example        # Plantilla de variables de entorno
+│   └── requirements.txt    # Dependencias Python
+├── frontend/
+│   ├── src/
+│   │   ├── auth/           # Pantallas de login, registro, verificación
+│   │   ├── components/     # Componentes reutilizables
+│   │   ├── pages/          # Vistas principales (Dashboard, Editor, etc.)
+│   │   ├── service/        # Cliente HTTP (api.js)
+│   │   └── utils/          # Utilidades (tokenUtils, etc.)
+│   ├── .env                # Variables de entorno locales (no se sube a git)
+│   ├── .env.example        # Plantilla de variables de entorno
+│   └── package.json
+└── .github/
+    └── workflows/          # CI/CD con GitHub Actions
+```
 
-&#x20;  `export npm\_config\_cache=../.npm\_cache \&\& npm run dev`
+---
 
+## Acceso al panel de administración
 
+Una vez levantado el backend, el panel admin de Django está disponible en:
 
-&#x20;  El frontend correrá en: http://localhost:5173/
+`http://127.0.0.1:8000/admin/`
 
-
-
-\## Usuarios
-
-
-
-\- \*\*Superusuario (Admin)\*\*: 
-
-&#x20; - Usuario: `admin`
-
-&#x20; - Contraseña: `admin123`
-
+Usa las credenciales del superusuario que creaste con `createsuperuser`.
