@@ -1,0 +1,27 @@
+name: CD - Auto Deploy
+
+on:
+  push:
+    branches:
+      - produccion # Cambia esto a 'master' o 'main' si tu rama de producción es distinta
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v3
+
+      - name: Ejecutar despliegue en VPS vía SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22 # Cambia si tu VPS usa otro puerto
+          script: |
+              # Navegar a la carpeta del proyecto (Asegúrate de que esta ruta sea correcta en tu VPS)
+              cd ~/doc_platform || cd /var/www/doc_platform
+              
+              # Ejecutar el script que ya tienes
+              bash deploy.sh
