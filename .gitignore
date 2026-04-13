@@ -1,29 +1,38 @@
-# Python                                                                                                               
-  __pycache__/                                                                                                           
-  *.pyc                                                                                                                  
-  *.pyo                                                                                                                  
-  venv/                                                                                                                  
-  env/                                                                                                                   
-  *.env
-  .env                                                                                                                   
-  .env.production                                           
-  *.sqlite3
-                                                                                                                         
-  # Django
-  staticfiles/                                                                                                           
-  media/                                                    
-  logs/
-  *.log
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+venv/
+env/
+.venv/
 
-  # Node
-  node_modules/
-  dist/
-  coverage/
-                                                                                                                         
-  # IDEs
-  .vscode/                                                                                                               
-  .idea/                                                    
+# Variables de entorno
+.env
+.env.production
+.env.local
+*.env
 
-  # OS
-  .DS_Store
-  Thumbs.db
+# Django
+*.sqlite3
+staticfiles/
+media/
+logs/
+*.log
+
+# Node
+node_modules/
+dist/
+coverage/
+.npm_cache/
+
+# IDEs
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code
+.claude/
