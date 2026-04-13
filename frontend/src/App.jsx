@@ -1,121 +1,495 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import toast, { Toaster } from 'react-hot-toast';
+import { getAccessToken, setTokens, clearTokens } from './utils/tokenUtils';
+import {
+  getDocuments,
+  createDocument,
+  updateDocument,
+  acquireLock,
+  releaseLock,
+  sendHeartbeat,
+  autosaveDocument,
+  saveVersion,
+  shareDocument,
+  revokePermission,
+  getMyInvitations,
+  acceptInvitation,
+  rejectInvitation,
+  deleteDocument,
+} from './services/api';
+import LandingPage from './pages/LandingPage';
+import Register from './auth/Register';
+import PermissionsModal from './components/PermissionsModal';
+import Dashboard from './pages/Dashboard';
+import Editor from './pages/Editor';
+import CompareView from './pages/CompareView';
+import CreateDocumentModal from './components/CreateDocumentModal';
+import SplashScreen from './components/SplashScreen';
+import ProfileModal from './components/ProfileModal';
+import PublicViewer from './pages/PublicViewer';
 
-function App() {
-  const [count, setCount] = useState(0)
+const App = () => {
+  const [token, setToken] = useState(getAccessToken());
+  const [currentUser, setCurrentUser] = useState(JSON.parse(localStorage.getItem('user') || 'null'));
+  const [view, setView] = useState('dashboard');
+  const [selectedDocId, setSelectedDocId] = useState(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const [compareVersions, setCompareVersions] = useState([null, null]);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newDocName, setNewDocName] = useState('');
+  const [showVersionModal, setShowVersionModal] = useState(false);
+  const [versionNote, setVersionNote] = useState('');
+  const [invitations, setInvitations] = useState([]);
+  const [showPermissionsModal, setShowPermissionsModal] = useState(false);
+  const [showSplash, setShowSplash] = useState(true);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [openingDocId, setOpeningDocId] = useState(null);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [transitionDirection, setTransitionDirection] = useState('forward');
+
+  const [documents, setDocuments] = useState([]);
+  const [isLoadingDocuments, setIsLoadingDocuments] = useState(true);
+  const [currentText, setCurrentText] = useState('');
+  const [originalText, setOriginalText] = useState('');
+  const textRef = React.useRef(currentText);
+  useEffect(() => { textRef.current = currentText; }, [currentText]);
+
+  const hasUnsavedChanges = currentText !== originalText;
+
+  const [isLockedByMe, setIsLockedByMe] = useState(false);
+  const [lockMessage, setLockMessage] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const fetchDocuments = useCallback(async () => {
+    if (!token) return;
+    setIsLoadingDocuments(true);
+    try {
+      const response = await getDocuments();
+      if (Array.isArray(response.data)) setDocuments(response.data);
+      else setDocuments([]);
+    } catch (error) {
+      console.error("Error fetching documents:", error);
+      if (error.response?.status !== 401) {
+        toast.error("Error al obtener los documentos del servidor");
+      }
+    } finally {
+      setIsLoadingDocuments(false);
+    }
+  }, [token]);
+
+  const fetchInvitations = useCallback(async () => {
+    if (!token) return;
+    try {
+      const response = await getMyInvitations();
+      setInvitations(response.data);
+    } catch (error) {
+      console.error("Error fetching invitations:", error);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (token) {
+      fetchDocuments();
+      fetchInvitations();
+    }
+  }, [token, fetchDocuments, fetchInvitations]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(globalThis.location.search);
+    const docId = params.get('doc');
+    if (docId && documents.length > 0 && token) {
+      const doc = documents.find(d => d.id === Number.parseInt(docId));
+      if (doc) {
+        setSelectedDocId(doc.id);
+        setCurrentText(doc.content);
+        setView('editor');
+        acquireLock(doc.id)
+          .then(() => {
+            setIsLockedByMe(true);
+          })
+          .catch(err => {
+            setIsLockedByMe(false);
+            setLockMessage(err.response?.data?.message);
+          });
+      }
+    }
+  }, [documents, token]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowSplash(false);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const handleLogin = (accessToken, refreshToken, userData) => {
+    setTransitionDirection('forward');
+    setIsTransitioning(true);
+    setTimeout(() => {
+      setToken(accessToken);
+      setCurrentUser(userData);
+      setTokens(accessToken, refreshToken);
+      localStorage.setItem('user', JSON.stringify(userData));
+      setIsTransitioning(false);
+    }, 600);
+  };
+
+  const handleLogout = () => {
+    setTransitionDirection('backward');
+    setIsTransitioning(true);
+    const doLogout = async () => {
+      if (isLockedByMe && selectedDocId) {
+        await handleAutosave();
+        try {
+          await releaseLock(selectedDocId);
+        } catch (e) { console.error("Unlock error", e); }
+      }
+      setToken(null);
+      setCurrentUser(null);
+      clearTokens();
+      setView('dashboard');
+      setIsTransitioning(false);
+    };
+    setTimeout(() => { void doLogout(); }, 600);
+  };
+
+  useEffect(() => {
+    const params = new URLSearchParams(globalThis.location.search);
+    const docView = params.get('view');
+    if (docView === 'reset_password') {
+      setView('dashboard');
+    }
+  }, []);
+
+  const handleAutosave = useCallback(async () => {
+    const docId = selectedDocId;
+    if (!docId || !isLockedByMe) return;
+    setIsSaving(true);
+    try {
+      await autosaveDocument(docId, textRef.current);
+    } catch (e) { console.error("Autosave error", e); }
+    setTimeout(() => setIsSaving(false), 2000);
+  }, [selectedDocId, isLockedByMe]);
+
+  useEffect(() => {
+    if (view !== 'editor' || !selectedDocId) return;
+
+    const intervals = [];
+
+    if (isLockedByMe) {
+      intervals.push(setInterval(() => {
+        sendHeartbeat(selectedDocId).catch(e => console.error("Heartbeat error", e));
+      }, 30000));
+      intervals.push(setInterval(() => { void handleAutosave(); }, 30000));
+    }
+
+    intervals.push(setInterval(() => {
+      if (!isLockedByMe) return;
+      getDocuments()
+        .then(response => {
+          const doc = response.data.find(d => d.id === selectedDocId);
+          if (doc?.status === 'bloqueado' && doc.locked_by !== currentUser?.id) {
+            setIsLockedByMe(false);
+            setLockMessage(`El documento está siendo editado por ${doc.locked_by_name}`);
+          }
+        })
+        .catch(e => console.error("Status check error", e));
+    }, 10000));
+
+    return () => intervals.forEach(clearInterval);
+  }, [view, isLockedByMe, selectedDocId, currentUser?.id, handleAutosave]);
+
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (isLockedByMe && selectedDocId) {
+        handleAutosave()
+          .then(() => releaseLock(selectedDocId))
+          .catch(e => console.error("Unlock error on close", e));
+      }
+    };
+
+    globalThis.addEventListener('beforeunload', handleBeforeUnload);
+    return () => globalThis.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isLockedByMe, selectedDocId, handleAutosave]);
+
+  const activeDoc = useMemo(() => documents.find(d => d.id === selectedDocId), [documents, selectedDocId]);
+
+  const handleOpenDoc = async (doc) => {
+    setOpeningDocId(doc.id);
+    setSelectedDocId(doc.id);
+    setCurrentText(doc.content);
+    setOriginalText(doc.content);
+
+    const url = new URL(globalThis.location.href);
+    url.searchParams.set('doc', doc.id);
+    globalThis.history.pushState({}, '', url);
+
+    try {
+      await acquireLock(doc.id);
+      setIsLockedByMe(true);
+      setLockMessage(null);
+    } catch (error) {
+      const data = error.response?.data;
+      if (error.response?.status === 409) {
+        setIsLockedByMe(false);
+        setLockMessage(data?.message || `El documento está siendo editado por ${data?.locked_by}`);
+      } else {
+        toast.error(data?.error || "No se pudo acceder al documento");
+      }
+    }
+    setOpeningDocId(null);
+    setView('editor');
+  };
+
+  const handleBackToDashboard = async () => {
+    if (isLockedByMe) {
+      await handleAutosave();
+      try {
+        await releaseLock(selectedDocId);
+      } catch (e) { console.error("Unlock error", e); }
+    }
+    setIsLockedByMe(false);
+    setLockMessage(null);
+    setSelectedDocId(null);
+    setOriginalText('');
+
+    const url = new URL(globalThis.location.href);
+    url.searchParams.delete('doc');
+    globalThis.history.pushState({}, '', url);
+
+    setView('dashboard');
+    fetchDocuments();
+  };
+
+  const handleCreateSubmit = async (e) => {
+    e.preventDefault();
+    if (!newDocName.trim()) return;
+
+    try {
+      await createDocument({ name: newDocName, content: '' });
+      await fetchDocuments();
+      setShowCreateModal(false);
+      setNewDocName('');
+      toast.success("Documento creado exitosamente");
+    } catch (error) {
+      console.error("Error creating document:", error);
+      toast.error("Error al crear el documento");
+    }
+  };
+
+  const handleVersionSubmit = async (e) => {
+    e.preventDefault();
+    if (!versionNote.trim()) return;
+
+    try {
+      await saveVersion(activeDoc.id, { content: currentText, note: versionNote });
+      await fetchDocuments();
+      setShowVersionModal(false);
+      setOriginalText(currentText);
+      setVersionNote('');
+      toast.success("Nueva versión guardada correctamente");
+    } catch (error) {
+      console.error("Error saving version:", error);
+      toast.error("Error al guardar la versión");
+    }
+  };
+
+  const handleRestoreVersion = (ver) => {
+    setCurrentText(ver.content);
+    toast.success(`Contenido restaurado a la versión ${ver.version_number}`);
+  };
+
+  const handleShare = async (email, role) => {
+    try {
+      await shareDocument(activeDoc.id, { email, role });
+      toast.success(`Invitación enviada a ${email}`);
+      fetchDocuments();
+    } catch (err) {
+      const msg = err.response?.data?.error || "No se pudo compartir";
+      toast.error(msg);
+    }
+  };
+
+  const handleRevoke = async (userId) => {
+    try {
+      await revokePermission(activeDoc.id, { user_id: userId });
+      toast.success("Acceso revocado");
+      fetchDocuments();
+    } catch {
+      toast.error("Error de conexión");
+    }
+  };
+
+  const handleAcceptInvitation = async (permId) => {
+    try {
+      await acceptInvitation({ permission_id: permId });
+      toast.success("Invitación aceptada correctamente");
+      fetchInvitations();
+      fetchDocuments();
+    } catch {
+      toast.error("Error al aceptar invitación");
+    }
+  };
+
+  const handleRejectInvitation = async (permId) => {
+    try {
+      await rejectInvitation({ permission_id: permId });
+      toast.success("Invitación rechazada");
+      fetchInvitations();
+    } catch {
+      toast.error("Error al rechazar invitación");
+    }
+  };
+
+  const handleDeleteDoc = async (doc) => {
+    try {
+      await deleteDocument(doc.id);
+      toast.success(`"${doc.name}" eliminado`);
+      fetchDocuments();
+    } catch (err) {
+      const msg = err.response?.data?.error || "Error al eliminar el documento";
+      toast.error(msg);
+    }
+  };
+
+  const handleUpdateDocName = async (newName) => {
+    if (!activeDoc || !newName.trim()) return;
+    try {
+      await updateDocument(activeDoc.id, { name: newName.trim() });
+      toast.success("Nombre del documento actualizado");
+      fetchDocuments();
+    } catch {
+      toast.error("Error al actualizar el nombre");
+    }
+  };
+
+  // Public share link — no auth needed
+  const shareToken = new URLSearchParams(globalThis.location.search).get('share');
+  if (shareToken) {
+    return <PublicViewer token={shareToken} />;
+  }
+
+  if (!token) {
+    if (view === 'register') {
+      return <Register onLogin={handleLogin} onBack={() => setView('login')} />;
+    }
+    return (
+      <LandingPage
+        onLogin={handleLogin}
+        onRegister={() => setView('register')}
+      />
+    );
+  }
+
+  const renderContent = () => {
+    if (view === 'editor' && activeDoc) {
+      return (
+        <Editor
+          activeDoc={activeDoc}
+          currentText={currentText}
+          setCurrentText={setCurrentText}
+          isLockedByMe={isLockedByMe}
+          lockMessage={lockMessage}
+          isSaving={isSaving}
+          showHistory={showHistory}
+          setShowHistory={setShowHistory}
+          showPermissionsModal={showPermissionsModal}
+          setShowPermissionsModal={setShowPermissionsModal}
+          showVersionModal={showVersionModal}
+          setShowVersionModal={setShowVersionModal}
+          versionNote={versionNote}
+          setVersionNote={setVersionNote}
+          onBack={handleBackToDashboard}
+          onSaveVersion={handleVersionSubmit}
+          onRestoreVersion={handleRestoreVersion}
+          onUpdateDocName={handleUpdateDocName}
+          hasUnsavedChanges={hasUnsavedChanges}
+        />
+      );
+    }
+    if (view === 'compare' && activeDoc) {
+      return (
+        <CompareView
+          activeDoc={activeDoc}
+          compareVersions={compareVersions}
+          setCompareVersions={setCompareVersions}
+          onBack={() => setView('editor')}
+        />
+      );
+    }
+    return (
+      <Dashboard
+        documents={documents}
+        isLoading={isLoadingDocuments}
+        currentUser={currentUser}
+        searchTerm={searchTerm}
+        setSearchTerm={setSearchTerm}
+        invitations={invitations}
+        onOpenDoc={handleOpenDoc}
+        onCreateDoc={() => setShowCreateModal(true)}
+        onLogout={handleLogout}
+        onAcceptInvitation={handleAcceptInvitation}
+        onRejectInvitation={handleRejectInvitation}
+        onDeleteDoc={handleDeleteDoc}
+        onOpenProfile={() => setShowProfileModal(true)}
+        openingDocId={openingDocId}
+      />
+    );
+  };
+
+  const getTransitionClasses = () => {
+    if (!isTransitioning) return 'opacity-100 translate-x-0 scale-100 blur-0';
+    if (transitionDirection === 'forward') {
+      return 'opacity-0 translate-x-[-15%] scale-105 blur-sm';
+    } else {
+      return 'opacity-0 translate-x-[15%] scale-95 blur-sm';
+    }
+  };
+
+  if (showSplash) {
+    return <SplashScreen />;
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
+    <div
+      key={token ? `auth-${view}` : 'unauth'}
+      className={`transition-all duration-500 ease-out min-h-screen w-full ${getTransitionClasses()}`}
+    >
+      {openingDocId && (
+        <div className="fixed inset-0 z-[500] flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm">
+          <div className="w-12 h-12 border-4 border-blue-100 border-t-blue-500 rounded-full animate-spin mb-4" />
+          <p className="text-slate-600 font-bold text-sm">Abriendo documento...</p>
         </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+      )}
+      <Toaster position="top-right" reverseOrder={false} />
+      {renderContent()}
+      {showPermissionsModal && activeDoc && (
+        <PermissionsModal
+          doc={activeDoc}
+          currentUser={currentUser}
+          onClose={() => setShowPermissionsModal(false)}
+          onShare={handleShare}
+          onRevoke={handleRevoke}
+        />
+      )}
+      {showProfileModal && (
+        <ProfileModal
+          currentUser={currentUser}
+          onClose={() => setShowProfileModal(false)}
+          onUserUpdate={(updated) => setCurrentUser(updated)}
+        />
+      )}
+      <CreateDocumentModal
+        show={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSubmit={handleCreateSubmit}
+        name={newDocName}
+        setName={setNewDocName}
+      />
+    </div>
+  );
+};
 
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
-}
-
-export default App
+export default App;
