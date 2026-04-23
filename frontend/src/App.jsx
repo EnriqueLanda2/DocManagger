@@ -328,7 +328,6 @@ const App = () => {
 
   const handleVersionSubmit = async (e) => {
     e.preventDefault();
-    if (!versionNote.trim()) return;
 
     try {
       await saveVersion(activeDoc.id, { content: currentText, note: versionNote });
