@@ -35,59 +35,77 @@ ToolButton.propTypes = {
 
 const Sep = () => <div className="w-px h-6 bg-slate-200/60 mx-1 shrink-0" />;
 
-const ImageDropdown = ({ imageMenuRef, inputId, showImageMenu, setShowImageMenu, imageAlign, setImageAlign, editor }) => (
-  <div className="relative shrink-0" ref={imageMenuRef}>
-    <ToolButton
-      icon={<ImageIcon size={17} />}
-      active={showImageMenu}
-      onClick={() => setShowImageMenu(!showImageMenu)}
-      title="Insertar imagen"
-    />
-    {showImageMenu && (
-      <div className="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-xl border border-slate-200 p-3 z-50 min-w-[200px] animate-in fade-in slide-in-from-top-2 duration-150">
-        <p className="text-xs font-semibold text-slate-500 mb-2">Alineación de imagen</p>
-        <div className="flex gap-1 mb-3">
-          <ToolButton icon={<AlignStartHorizontal size={17} />} active={imageAlign === 'left'} onClick={() => setImageAlign('left')} title="Izquierda" />
-          <ToolButton icon={<AlignCenterIcon size={17} />} active={imageAlign === 'center'} onClick={() => setImageAlign('center')} title="Centro" />
-          <ToolButton icon={<AlignEndHorizontal size={17} />} active={imageAlign === 'right'} onClick={() => setImageAlign('right')} title="Derecha" />
-        </div>
-        <label
-          htmlFor={inputId}
-          className="flex items-center justify-center gap-2 px-3 py-2 bg-indigo-600 text-white rounded-md cursor-pointer hover:bg-indigo-700 transition-colors"
-        >
-          <Upload size={14} />
-          <span className="text-sm font-medium">Subir imagen</span>
-          <input
-            id={inputId}
-            type="file"
-            accept="image/*"
-            onChange={(e) => {
-              const file = e.target.files[0];
-              if (file) {
-                const reader = new FileReader();
-                reader.onload = (ev) => {
-                  editor.chain().focus().setImage({ src: ev.target.result, alignment: imageAlign }).run();
-                };
-                reader.readAsDataURL(file);
-              }
-              setShowImageMenu(false);
-            }}
-            className="hidden"
-          />
-        </label>
-        {editor.isActive('image') && (
-          <button
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => editor.chain().focus().deleteNode('image').run()}
-            className="flex items-center justify-center gap-2 w-full mt-2 px-3 py-2 text-red-600 hover:bg-red-50 rounded-md transition-colors"
-          >
-            <Trash2 size={14} /><span className="text-sm font-medium">Eliminar imagen</span>
-          </button>
-        )}
+const ImageDropdown = ({ imageMenuRef, inputId, showImageMenu, setShowImageMenu, imageAlign, setImageAlign, editor }) => {
+  const btnRef = useRef(null);
+  const [dropStyle, setDropStyle] = useState({});
+
+  const handleToggle = () => {
+    if (!showImageMenu && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setDropStyle({ top: rect.bottom + 4, left: rect.left });
+    }
+    setShowImageMenu(!showImageMenu);
+  };
+
+  return (
+    <div className="shrink-0" ref={imageMenuRef}>
+      <div ref={btnRef}>
+        <ToolButton
+          icon={<ImageIcon size={17} />}
+          active={showImageMenu}
+          onClick={handleToggle}
+          title="Insertar imagen"
+        />
       </div>
-    )}
-  </div>
-);
+      {showImageMenu && (
+        <div
+          className="fixed bg-white rounded-lg shadow-xl border border-slate-200 p-3 z-[9999] min-w-[200px] animate-in fade-in slide-in-from-top-2 duration-150"
+          style={{ top: `${dropStyle.top}px`, left: `${dropStyle.left}px` }}
+        >
+          <p className="text-xs font-semibold text-slate-500 mb-2">Alineación de imagen</p>
+          <div className="flex gap-1 mb-3">
+            <ToolButton icon={<AlignStartHorizontal size={17} />} active={imageAlign === 'left'} onClick={() => setImageAlign('left')} title="Izquierda" />
+            <ToolButton icon={<AlignCenterIcon size={17} />} active={imageAlign === 'center'} onClick={() => setImageAlign('center')} title="Centro" />
+            <ToolButton icon={<AlignEndHorizontal size={17} />} active={imageAlign === 'right'} onClick={() => setImageAlign('right')} title="Derecha" />
+          </div>
+          <label
+            htmlFor={inputId}
+            className="flex items-center justify-center gap-2 px-3 py-2 bg-indigo-600 text-white rounded-md cursor-pointer hover:bg-indigo-700 transition-colors"
+          >
+            <Upload size={14} />
+            <span className="text-sm font-medium">Subir imagen</span>
+            <input
+              id={inputId}
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                const file = e.target.files[0];
+                if (file) {
+                  const reader = new FileReader();
+                  reader.onload = (ev) => {
+                    editor.chain().focus().setImage({ src: ev.target.result, alignment: imageAlign }).run();
+                  };
+                  reader.readAsDataURL(file);
+                }
+                setShowImageMenu(false);
+              }}
+              className="hidden"
+            />
+          </label>
+          {editor.isActive('image') && (
+            <button
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => editor.chain().focus().deleteNode('image').run()}
+              className="flex items-center justify-center gap-2 w-full mt-2 px-3 py-2 text-red-600 hover:bg-red-50 rounded-md transition-colors"
+            >
+              <Trash2 size={14} /><span className="text-sm font-medium">Eliminar imagen</span>
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
 ImageDropdown.propTypes = {
   imageMenuRef: PropTypes.object.isRequired,
@@ -99,29 +117,47 @@ ImageDropdown.propTypes = {
   editor: PropTypes.object.isRequired,
 };
 
-const ExportDropdown = ({ exportMenuRef, showExportMenu, setShowExportMenu, onExportPDF, onExportDOCX, onExportText }) => (
-  <div className="relative shrink-0" ref={exportMenuRef}>
-    <ToolButton
-      icon={<Download size={17} />}
-      active={showExportMenu}
-      onClick={() => setShowExportMenu(!showExportMenu)}
-      title="Exportar documento"
-    />
-    {showExportMenu && (
-      <div className="absolute top-full right-0 mt-1 bg-white rounded-lg shadow-xl border border-slate-200 p-2 z-50 min-w-[160px] animate-in fade-in slide-in-from-top-2 duration-150">
-        <button onClick={onExportPDF} className="flex items-center gap-2 w-full px-3 py-2 text-slate-700 hover:bg-slate-100 rounded-md transition-colors">
-          <FileText size={16} /><span className="text-sm font-medium">Exportar PDF</span>
-        </button>
-        <button onClick={onExportDOCX} className="flex items-center gap-2 w-full px-3 py-2 text-slate-700 hover:bg-slate-100 rounded-md transition-colors">
-          <FileText size={16} /><span className="text-sm font-medium">Exportar DOCX</span>
-        </button>
-        <button onClick={onExportText} className="flex items-center gap-2 w-full px-3 py-2 text-slate-700 hover:bg-slate-100 rounded-md transition-colors">
-          <FileText size={16} /><span className="text-sm font-medium">Exportar TXT</span>
-        </button>
+const ExportDropdown = ({ exportMenuRef, showExportMenu, setShowExportMenu, onExportPDF, onExportDOCX, onExportText }) => {
+  const btnRef = useRef(null);
+  const [dropStyle, setDropStyle] = useState({});
+
+  const handleToggle = () => {
+    if (!showExportMenu && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setDropStyle({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+    }
+    setShowExportMenu(!showExportMenu);
+  };
+
+  return (
+    <div className="shrink-0" ref={exportMenuRef}>
+      <div ref={btnRef}>
+        <ToolButton
+          icon={<Download size={17} />}
+          active={showExportMenu}
+          onClick={handleToggle}
+          title="Exportar documento"
+        />
       </div>
-    )}
-  </div>
-);
+      {showExportMenu && (
+        <div
+          className="fixed bg-white rounded-lg shadow-xl border border-slate-200 p-2 z-[9999] min-w-[160px] animate-in fade-in slide-in-from-top-2 duration-150"
+          style={{ top: `${dropStyle.top}px`, right: `${dropStyle.right}px` }}
+        >
+          <button onClick={onExportPDF} className="flex items-center gap-2 w-full px-3 py-2 text-slate-700 hover:bg-slate-100 rounded-md transition-colors">
+            <FileText size={16} /><span className="text-sm font-medium">Exportar PDF</span>
+          </button>
+          <button onClick={onExportDOCX} className="flex items-center gap-2 w-full px-3 py-2 text-slate-700 hover:bg-slate-100 rounded-md transition-colors">
+            <FileText size={16} /><span className="text-sm font-medium">Exportar DOCX</span>
+          </button>
+          <button onClick={onExportText} className="flex items-center gap-2 w-full px-3 py-2 text-slate-700 hover:bg-slate-100 rounded-md transition-colors">
+            <FileText size={16} /><span className="text-sm font-medium">Exportar TXT</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
 
 ExportDropdown.propTypes = {
   exportMenuRef: PropTypes.object.isRequired,
@@ -266,7 +302,7 @@ const Toolbar = ({
   return (
     <div className="sticky top-0 z-40 flex flex-col bg-white border-b border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)]">
       {/* Primary row — always visible */}
-      <div className="flex items-center gap-1 p-2 px-3 overflow-x-auto scrollbar-none">
+      <div className="flex items-center gap-1 p-2 px-3">
         {/* Font size */}
         <div className="flex items-center gap-1 pr-2 border-r border-slate-200/60 shrink-0">
           <select

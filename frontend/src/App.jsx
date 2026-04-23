@@ -62,6 +62,12 @@ const App = () => {
   const [lockMessage, setLockMessage] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
 
+  const lastActivityRef = React.useRef(Date.now());
+  const isLockedByMeRef = React.useRef(false);
+  const selectedDocIdRef = React.useRef(null);
+  useEffect(() => { isLockedByMeRef.current = isLockedByMe; }, [isLockedByMe]);
+  useEffect(() => { selectedDocIdRef.current = selectedDocId; }, [selectedDocId]);
+
   const fetchDocuments = useCallback(async () => {
     if (!token) return;
     setIsLoadingDocuments(true);
@@ -202,6 +208,39 @@ const App = () => {
   }, [view, isLockedByMe, selectedDocId, currentUser?.id, handleAutosave]);
 
   useEffect(() => {
+    if (view !== 'editor') return;
+    const updateActivity = () => { lastActivityRef.current = Date.now(); };
+    document.addEventListener('mousemove', updateActivity);
+    document.addEventListener('keydown', updateActivity);
+    document.addEventListener('mousedown', updateActivity);
+    document.addEventListener('touchstart', updateActivity);
+    return () => {
+      document.removeEventListener('mousemove', updateActivity);
+      document.removeEventListener('keydown', updateActivity);
+      document.removeEventListener('mousedown', updateActivity);
+      document.removeEventListener('touchstart', updateActivity);
+    };
+  }, [view]);
+
+  useEffect(() => {
+    if (view !== 'editor') return;
+    const INACTIVITY_MS = 1 * 60 * 1000;
+    const timer = setInterval(async () => {
+      if (!isLockedByMeRef.current || !selectedDocIdRef.current) return;
+      if (Date.now() - lastActivityRef.current < INACTIVITY_MS) return;
+      const docId = selectedDocIdRef.current;
+      setIsSaving(true);
+      try { await autosaveDocument(docId, textRef.current); } catch (e) { console.error('Inactivity autosave', e); }
+      try { await releaseLock(docId); } catch (e) { console.error('Inactivity release lock', e); }
+      setIsSaving(false);
+      setIsLockedByMe(false);
+      setView('dashboard');
+      toast('Sesión cerrada por inactividad. Cambios guardados automáticamente.', { duration: 6000 });
+    }, 30000);
+    return () => clearInterval(timer);
+  }, [view]);
+
+  useEffect(() => {
     const handleBeforeUnload = () => {
       if (isLockedByMe && selectedDocId) {
         handleAutosave()
@@ -216,7 +255,15 @@ const App = () => {
 
   const activeDoc = useMemo(() => documents.find(d => d.id === selectedDocId), [documents, selectedDocId]);
 
+  const userRole = useMemo(() => {
+    if (!activeDoc || !currentUser) return null;
+    if (activeDoc.owner === currentUser.id) return 'owner';
+    const perm = activeDoc.permissions?.find(p => p.user === currentUser.id && p.status === 'aceptado');
+    return perm?.role ?? null;
+  }, [activeDoc, currentUser]);
+
   const handleOpenDoc = async (doc) => {
+    lastActivityRef.current = Date.now();
     setOpeningDocId(doc.id);
     setSelectedDocId(doc.id);
     setCurrentText(doc.content);
@@ -404,8 +451,8 @@ const App = () => {
           onBack={handleBackToDashboard}
           onSaveVersion={handleVersionSubmit}
           onRestoreVersion={handleRestoreVersion}
+          userRole={userRole}
           onUpdateDocName={handleUpdateDocName}
-          hasUnsavedChanges={hasUnsavedChanges}
         />
       );
     }
