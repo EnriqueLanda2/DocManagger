@@ -163,6 +163,7 @@ const RichTextEditor = ({ content, onChange, editable = true, docName = 'documen
   const [showImageMenu, setShowImageMenu] = useState(false);
   const [imageAlign, setImageAlign] = useState('center');
   const editorRef = useRef(null);
+  const isLocalUpdate = useRef(false);
   const isMobile = useIsMobile();
 
   const currentMargin = MARGIN_OPTIONS[margin] || 60;
@@ -178,12 +179,19 @@ const RichTextEditor = ({ content, onChange, editable = true, docName = 'documen
     ],
     content: content || '',
     editable,
-    onUpdate: ({ editor }) => onChange(editor.getHTML()),
+    onUpdate: ({ editor }) => {
+      isLocalUpdate.current = true;
+      onChange(editor.getHTML());
+    },
   });
 
   useEffect(() => {
-    if (content && editor && content !== editor.getHTML()) {
-      editor.commands.setContent(content);
+    if (isLocalUpdate.current) {
+      isLocalUpdate.current = false;
+      return;
+    }
+    if (editor && content !== editor.getHTML()) {
+      editor.commands.setContent(content || '');
     }
   }, [content, editor]);
 
