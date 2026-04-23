@@ -215,15 +215,19 @@ const RichTextEditor = ({ content, onChange, editable = true, docName = 'documen
 </head>
 <body>${htmlContent}</body>
 </html>`;
-    const blobUrl = `data:text/html;charset=utf-8;base64,${btoa(unescape(encodeURIComponent(htmlDoc)))}`;
+    const encoded = new TextEncoder().encode(htmlDoc);
+    const blob = new Blob([encoded], { type: 'text/html;charset=utf-8' });
+    const blobUrl = URL.createObjectURL(blob);
     const printWindow = globalThis.open(blobUrl, '_blank');
     if (!printWindow) {
+      URL.revokeObjectURL(blobUrl);
       alert('Por favor permite ventanas emergentes para descargar el PDF');
       return;
     }
     printWindow.onload = () => {
       printWindow.focus();
       printWindow.print();
+      URL.revokeObjectURL(blobUrl);
     };
     setShowExportMenu(false);
   }, [editor, docName]);
