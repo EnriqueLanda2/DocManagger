@@ -350,7 +350,7 @@ const Editor = ({
           <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-xl w-full sm:max-w-md overflow-hidden animate-in slide-in-from-bottom sm:fade-in sm:zoom-in duration-200">
             <div className="p-5 sm:p-6 border-b border-slate-100">
               <h3 className="text-lg font-bold text-slate-800">Publicar Nueva Versión</h3>
-              <p className="text-sm text-slate-500">Describa los cambios realizados en esta versión.</p>
+              <p className="text-sm text-slate-500">Describe los cambios (opcional).</p>
             </div>
             <form onSubmit={handleSaveVersion} className="p-5 sm:p-6">
               <div>
@@ -361,7 +361,7 @@ const Editor = ({
                   id="editor-version-note"
                   autoFocus
                   className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-medium text-slate-800 resize-none h-28 sm:h-32"
-                  placeholder="Ej. Se agregaron las conclusiones finales..."
+                  placeholder="Ej. Se agregaron las conclusiones finales... (opcional)"
                   value={versionNote}
                   onChange={(e) => setVersionNote(e.target.value)}
                 />
@@ -376,8 +376,7 @@ const Editor = ({
                 </button>
                 <button
                   type="submit"
-                  disabled={!versionNote.trim()}
-                  className="px-6 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-lg shadow-lg transition-all touch-manipulation"
+                  className="px-6 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-lg transition-all touch-manipulation"
                 >
                   Guardar Versión
                 </button>
