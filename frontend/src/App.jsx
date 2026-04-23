@@ -216,6 +216,13 @@ const App = () => {
 
   const activeDoc = useMemo(() => documents.find(d => d.id === selectedDocId), [documents, selectedDocId]);
 
+  const userRole = useMemo(() => {
+    if (!activeDoc || !currentUser) return null;
+    if (activeDoc.owner === currentUser.id) return 'owner';
+    const perm = activeDoc.permissions?.find(p => p.user === currentUser.id && p.status === 'aceptado');
+    return perm?.role ?? null;
+  }, [activeDoc, currentUser]);
+
   const handleOpenDoc = async (doc) => {
     setOpeningDocId(doc.id);
     setSelectedDocId(doc.id);
@@ -404,6 +411,7 @@ const App = () => {
           onBack={handleBackToDashboard}
           onSaveVersion={handleVersionSubmit}
           onRestoreVersion={handleRestoreVersion}
+          userRole={userRole}
           onUpdateDocName={handleUpdateDocName}
           hasUnsavedChanges={hasUnsavedChanges}
         />

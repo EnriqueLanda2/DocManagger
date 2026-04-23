@@ -69,6 +69,7 @@ const Editor = ({
   onBack,
   onSaveVersion,
   onRestoreVersion,
+  userRole,
   onUpdateDocName,
   hasUnsavedChanges
 }) => {
@@ -298,7 +299,8 @@ const Editor = ({
                     <div className="flex gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={() => onRestoreVersion(ver)}
-                        className="flex-1 text-[10px] font-bold py-2.5 bg-slate-900 text-white rounded-lg hover:bg-slate-800 touch-manipulation"
+                        disabled={userRole === 'lector'}
+                        className="flex-1 text-[10px] font-bold py-2.5 bg-slate-900 text-white rounded-lg hover:bg-slate-800 disabled:bg-slate-300 disabled:cursor-not-allowed touch-manipulation"
                       >
                         Restaurar
                       </button>
@@ -435,6 +437,7 @@ Editor.propTypes = {
   onBack: PropTypes.func.isRequired,
   onSaveVersion: PropTypes.func.isRequired,
   onRestoreVersion: PropTypes.func.isRequired,
+  userRole: PropTypes.string,
   onUpdateDocName: PropTypes.func.isRequired,
   hasUnsavedChanges: PropTypes.bool,
 };

@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import DocumentViewSet, UserViewSet, AuditLogViewSet, public_document_view
+from .views import DocumentViewSet, UserViewSet, AuditLogViewSet, public_document_view, secure_endpoint
 from .authentication.views import login_view, register_view, refresh_token_view, profile_view, change_password_view
 
 router = DefaultRouter()
@@ -16,4 +16,5 @@ urlpatterns = [
     path('auth/profile/', profile_view),
     path('auth/change-password/', change_password_view),
     path('share/<str:token>/', public_document_view),
+    path('secure/', secure_endpoint),
 ]

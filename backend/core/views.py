@@ -6,7 +6,7 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 from .models import Document, Version, Permission, ShareLink, AuditLog
 from .serializers import DocumentSerializer, VersionSerializer, UserSerializer, PermissionSerializer, AuditLogSerializer
-from .utils import log_action, encrypt_token, decrypt_token
+from .utils import log_action, encrypt_token, decrypt_token, encrypt_body, encrypt_secure, decrypt_secure
 
 
 class UserViewSet(viewsets.ReadOnlyModelViewSet):
@@ -178,9 +178,10 @@ class DocumentViewSet(viewsets.ModelViewSet):
         if role not in ['editor', 'viewer']:
             return Response({'error': 'Rol inválido'}, status=status.HTTP_400_BAD_REQUEST)
         link = ShareLink.objects.create(document=doc, role=role, created_by=request.user)
-        encrypted = encrypt_token(str(link.token))
+        encrypted_token = encrypt_token(str(link.token))
         log_action(request, 'GENERATE_SHARE_LINK', f"{doc.name} ({role})")
-        return Response({'token': encrypted, 'role': link.role})
+        payload = encrypt_body({'token': encrypted_token, 'role': link.role})
+        return Response({'data': payload})
 
 
 @api_view(['GET'])
@@ -206,3 +207,32 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [permissions.IsAdminUser]
     serializer_class = AuditLogSerializer
     queryset = AuditLog.objects.all()
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def secure_endpoint(request):
+    try:
+        payload = decrypt_secure(request.data.get('payload', ''))
+    except Exception:
+        return Response({'data': encrypt_secure({'error': 'Payload inválido'})}, status=status.HTTP_400_BAD_REQUEST)
+
+    endpoint = payload.get('endpoint')
+
+    if endpoint == 'generate_share_link':
+        doc_id = payload.get('doc_id')
+        role = payload.get('role', 'viewer')
+        try:
+            doc = Document.objects.get(pk=doc_id)
+        except Document.DoesNotExist:
+            return Response({'data': encrypt_secure({'error': 'Documento no encontrado'})}, status=status.HTTP_404_NOT_FOUND)
+        if doc.owner != request.user:
+            return Response({'data': encrypt_secure({'error': 'Solo el dueño puede generar links'})}, status=status.HTTP_403_FORBIDDEN)
+        if role not in ['editor', 'viewer']:
+            return Response({'data': encrypt_secure({'error': 'Rol inválido'})}, status=status.HTTP_400_BAD_REQUEST)
+        link = ShareLink.objects.create(document=doc, role=role, created_by=request.user)
+        encrypted_token = encrypt_token(str(link.token))
+        log_action(request, 'GENERATE_SHARE_LINK', f"{doc.name} ({role})")
+        return Response({'data': encrypt_secure({'token': encrypted_token, 'role': link.role})})
+
+    return Response({'data': encrypt_secure({'error': 'Endpoint desconocido'})}, status=status.HTTP_400_BAD_REQUEST)
