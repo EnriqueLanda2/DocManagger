@@ -200,6 +200,7 @@ const RichTextEditor = ({ content, onChange, editable = true, docName = 'documen
     const htmlDoc = `<!DOCTYPE html>
 <html>
 <head>
+  <meta charset="UTF-8">
   <title>${docName}</title>
   <style>
     body { font-family: Arial, sans-serif; font-size: 12pt; line-height: 1.6; padding: 20mm; max-width: 210mm; margin: 0 auto; }
@@ -214,7 +215,7 @@ const RichTextEditor = ({ content, onChange, editable = true, docName = 'documen
 </head>
 <body>${htmlContent}</body>
 </html>`;
-    const blob = new Blob([htmlDoc], { type: 'text/html' });
+    const blob = new Blob([htmlDoc], { type: 'text/html;charset=utf-8' });
     const blobUrl = URL.createObjectURL(blob);
     const printWindow = globalThis.open(blobUrl, '_blank');
     if (!printWindow) {
