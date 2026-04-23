@@ -453,7 +453,6 @@ const App = () => {
           onRestoreVersion={handleRestoreVersion}
           userRole={userRole}
           onUpdateDocName={handleUpdateDocName}
-          hasUnsavedChanges={hasUnsavedChanges}
         />
       );
     }
