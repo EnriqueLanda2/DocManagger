@@ -224,7 +224,7 @@ const App = () => {
 
   useEffect(() => {
     if (view !== 'editor') return;
-    const INACTIVITY_MS = 5 * 60 * 1000;
+    const INACTIVITY_MS = 1 * 60 * 1000;
     const timer = setInterval(async () => {
       if (!isLockedByMeRef.current || !selectedDocIdRef.current) return;
       if (Date.now() - lastActivityRef.current < INACTIVITY_MS) return;
