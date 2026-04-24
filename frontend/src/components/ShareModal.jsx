@@ -95,13 +95,27 @@ const ShareModal = ({ doc, onClose }) => {
     setGeneratingLink(true);
     try {
       const res = await generateShareLink(doc.id, role);
-      const base = window.location.origin + window.location.pathname;
-      const url = `${base}?share=${res.data.token}`;
-      await navigator.clipboard.writeText(url);
+      const p = window.location.pathname;
+      const idx = p.indexOf('/docM');
+      const appBase = idx >= 0 ? p.slice(0, idx + 5) : '/docM';
+      const url = `${window.location.origin}${appBase}/view/${res.data.token}`;
+      try {
+        await navigator.clipboard.writeText(url);
+      } catch {
+        const ta = document.createElement('textarea');
+        ta.value = url;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
       setCopiedLink(role);
       toast.success(`Link de ${role === 'viewer' ? 'lectura' : 'editor'} copiado`);
       setTimeout(() => setCopiedLink(null), 2500);
-    } catch {
+    } catch (err) {
+      console.error('generateShareLink error:', err);
       toast.error('No se pudo generar el link');
     } finally {
       setGeneratingLink(false);

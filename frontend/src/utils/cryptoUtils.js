@@ -1,29 +1,25 @@
-import CryptoJS from 'crypto-js';
+const KEY_RAW = new TextEncoder().encode('docPlatformSecureKey2024!!!!!!!!');
 
-const SECURE_KEY = CryptoJS.enc.Utf8.parse('docPlatformSecureKey2024!!!!!!!!');
-
-export function encryptPayload(data) {
-    const iv = CryptoJS.lib.WordArray.random(16);
-    const encrypted = CryptoJS.AES.encrypt(JSON.stringify(data), SECURE_KEY, {
-        iv,
-        mode: CryptoJS.mode.CBC,
-        padding: CryptoJS.pad.Pkcs7,
-    });
-    const combined = iv.concat(encrypted.ciphertext);
-    return CryptoJS.enc.Base64.stringify(combined);
+async function getKey() {
+    return crypto.subtle.importKey('raw', KEY_RAW, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
 }
 
-export function decryptPayload(data) {
-    const combined = CryptoJS.enc.Base64.parse(data);
-    const iv = CryptoJS.lib.WordArray.create(combined.words.slice(0, 4), 16);
-    const ciphertext = CryptoJS.lib.WordArray.create(
-        combined.words.slice(4),
-        combined.sigBytes - 16
-    );
-    const decrypted = CryptoJS.AES.decrypt({ ciphertext }, SECURE_KEY, {
-        iv,
-        mode: CryptoJS.mode.CBC,
-        padding: CryptoJS.pad.Pkcs7,
-    });
-    return JSON.parse(decrypted.toString(CryptoJS.enc.Utf8));
+export async function encryptPayload(data) {
+    const key = await getKey();
+    const nonce = crypto.getRandomValues(new Uint8Array(12));
+    const encoded = new TextEncoder().encode(JSON.stringify(data));
+    const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce }, key, encoded);
+    const combined = new Uint8Array(12 + ciphertext.byteLength);
+    combined.set(nonce, 0);
+    combined.set(new Uint8Array(ciphertext), 12);
+    return btoa(String.fromCharCode(...combined));
+}
+
+export async function decryptPayload(data) {
+    const key = await getKey();
+    const combined = Uint8Array.from(atob(data), c => c.charCodeAt(0));
+    const nonce = combined.slice(0, 12);
+    const ciphertext = combined.slice(12);
+    const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: nonce }, key, ciphertext);
+    return JSON.parse(new TextDecoder().decode(decrypted));
 }
