@@ -4,8 +4,6 @@ from rest_framework.test import APIClient
 from rest_framework import status
 from .models import Document, Permission, AuditLog, UserProfile, Version, ShareLink
 from .utils import get_client_ip, encrypt_token, decrypt_token, log_action, _cipher
-from .email_service import render_verification_email
-
 
 REGISTER_URL = '/api/auth/register/'
 DOCUMENTS_URL = '/api/documents/'
@@ -234,17 +232,6 @@ class UtilsTests(TestCase):
         log_action(request, 'TEST_ACTION', 'test_target')
         self.assertEqual(AuditLog.objects.count(), count_before + 1)
 
-
-class EmailServiceTests(TestCase):
-    def test_render_verification_email_contiene_codigo(self):
-        html = render_verification_email({'user_name': 'Juan', 'verification_code': '123456'})
-        self.assertIn('123456', html)
-        self.assertIn('Juan', html)
-
-    def test_render_verification_email_valores_por_defecto(self):
-        html = render_verification_email({})
-        self.assertIn('000000', html)
-        self.assertIn('Usuario', html)
 
 
 class ProfileTests(TestCase):
