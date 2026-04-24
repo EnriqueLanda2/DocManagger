@@ -13,6 +13,7 @@ load_dotenv(env_path)
 
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-default-key-for-dev-purposes-only')
 FERNET_KEY = os.environ.get('FERNET_KEY', 'gxl7P7j623WDqHjs1xoTODF5WxXW4mfLerRhMYTDdeg=')
+SECURE_AES_KEY = os.environ.get('SECURE_AES_KEY', 'docPlatformSecureKey2024!!!!!!!!').encode()[:32]
 
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
@@ -166,7 +167,6 @@ EMAIL_HOST_USER = 'noreply@docmanager.com'
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework_simplejwt.authentication.JWTAuthentication',
-        'rest_framework.authentication.SessionAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
