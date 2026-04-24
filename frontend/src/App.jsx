@@ -146,6 +146,7 @@ const App = () => {
       setCurrentUser(userData);
       setTokens(accessToken, refreshToken);
       localStorage.setItem('user', JSON.stringify(userData));
+      setView('dashboard');
       setIsTransitioning(false);
       const redirect = sessionStorage.getItem('postLoginRedirect');
       if (redirect) {

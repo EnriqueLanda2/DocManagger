@@ -146,7 +146,7 @@ const Register = ({ onLogin, onBack }) => {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-3">
+        <form onSubmit={handleSubmit} autoComplete="off" className="space-y-3">
           <div className="grid grid-cols-2 gap-2 sm:gap-3">
             <div className="space-y-1">
               <label htmlFor="reg-firstName" className="text-xs font-bold text-slate-600 ml-1">Nombre(s)</label>
@@ -270,6 +270,7 @@ const Register = ({ onLogin, onBack }) => {
                   name="password"
                   value={formData.password}
                   onChange={handleChange}
+                  autoComplete="new-password"
                   className="w-full pl-9 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
                   placeholder="••••••"
                   required
@@ -293,6 +294,7 @@ const Register = ({ onLogin, onBack }) => {
                   name="confirmPassword"
                   value={formData.confirmPassword}
                   onChange={handleChange}
+                  autoComplete="new-password"
                   className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
                   placeholder="••••••"
                   required
