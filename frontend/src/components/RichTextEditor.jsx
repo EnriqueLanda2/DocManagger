@@ -1,5 +1,6 @@
 // Note: EditorContent from TipTap manages its own DOM safely; no raw innerHTML usage here.
 import { useState, useEffect, useRef, useCallback } from 'react';
+import toast from 'react-hot-toast';
 import PropTypes from 'prop-types';
 import { useEditor, EditorContent, ReactNodeViewRenderer, NodeViewWrapper } from '@tiptap/react';
 import { Node, Extension, mergeAttributes } from '@tiptap/core';
@@ -195,48 +196,56 @@ const RichTextEditor = ({ content, onChange, editable = true, docName = 'documen
     }
   }, [content, editor]);
 
-  const exportToPDF = useCallback(() => {
-    const htmlContent = editor?.getHTML() || '';
-    const htmlDoc = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>${docName}</title>
-  <style>
-    body { font-family: Arial, sans-serif; font-size: 12pt; line-height: 1.6; padding: 20mm; max-width: 210mm; margin: 0 auto; }
-    h1 { font-size: 24pt; font-weight: bold; }
-    h2 { font-size: 18pt; font-weight: bold; }
-    h3 { font-size: 14pt; font-weight: bold; }
-    p { margin-bottom: 12pt; text-align: justify; }
-    ul, ol { margin-left: 20pt; margin-bottom: 12pt; }
-    img { max-width: 100%; height: auto; }
-    @media print { body { padding: 0; } @page { margin: 20mm; size: A4; } }
-  </style>
-</head>
-<body>${htmlContent}</body>
-</html>`;
-    const encoded = new TextEncoder().encode(htmlDoc);
-    const blob = new Blob([encoded], { type: 'text/html;charset=utf-8' });
-    const blobUrl = URL.createObjectURL(blob);
-    const printWindow = globalThis.open(blobUrl, '_blank');
-    if (!printWindow) {
-      URL.revokeObjectURL(blobUrl);
-      alert('Por favor permite ventanas emergentes para descargar el PDF');
-      return;
-    }
-    printWindow.onload = () => {
-      printWindow.focus();
-      printWindow.print();
-      URL.revokeObjectURL(blobUrl);
-    };
+  useEffect(() => {
+    if (editor) editor.setEditable(editable);
+  }, [editor, editable]);
+
+  const exportToPDF = useCallback(async () => {
+    if (!editor) return;
     setShowExportMenu(false);
+    const toastId = toast.loading('Generando PDF...');
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'width:794px;padding:56px 80px;background:white;color:black;font-family:Arial,sans-serif;font-size:12pt;line-height:1.6;position:fixed;top:0;left:-9999px;';
+    wrapper.appendChild(editor.view.dom.cloneNode(true));
+    document.body.appendChild(wrapper);
+    try {
+      const [{ jsPDF }, h2cMod] = await Promise.all([
+        import('jspdf'),
+        import('html2canvas'),
+      ]);
+      const h2c = h2cMod.default ?? h2cMod;
+      const canvas = await h2c(wrapper, {
+        scale: 2, useCORS: true, backgroundColor: '#ffffff',
+        onclone: (clonedDoc) => {
+          clonedDoc.querySelectorAll('link[rel="stylesheet"],style').forEach(s => s.remove());
+          const s = clonedDoc.createElement('style');
+          s.textContent = '*{box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:12pt;line-height:1.6;color:#000}h1{font-size:24pt;font-weight:700;margin:0 0 12pt}h2{font-size:18pt;font-weight:700;margin:0 0 10pt}h3{font-size:14pt;font-weight:700;margin:0 0 8pt}p{margin:0 0 10pt}strong,b{font-weight:700}em,i{font-style:italic}u{text-decoration:underline}ul,ol{margin:0 0 10pt;padding-left:20pt}li{margin-bottom:4pt}';
+          clonedDoc.head.appendChild(s);
+        },
+      });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const imgH = (canvas.height * pageW) / canvas.width;
+      let drawn = 0;
+      while (drawn < imgH) {
+        pdf.addImage(imgData, 'PNG', 0, -drawn, pageW, imgH);
+        drawn += pageH;
+        if (drawn < imgH) pdf.addPage();
+      }
+      pdf.save(`${docName}.pdf`);
+      toast.success('PDF descargado', { id: toastId });
+    } catch (err) {
+      toast.error(`Error al generar PDF: ${err.message}`, { id: toastId });
+    } finally {
+      document.body.removeChild(wrapper);
+    }
   }, [editor, docName]);
 
   const exportToDOCX = useCallback(async () => {
-    const html = editor?.getHTML() || '';
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = html;
-    const docChildren = Array.from(tempDiv.children).map(child => {
+    if (!editor) return;
+    const docChildren = Array.from(editor.view.dom.children).map(child => {
       if (child.tagName === 'H1') return new Paragraph({ text: child.textContent, heading: HeadingLevel.HEADING_1 });
       if (child.tagName === 'H2') return new Paragraph({ text: child.textContent, heading: HeadingLevel.HEADING_2 });
       if (child.tagName === 'H3') return new Paragraph({ text: child.textContent, heading: HeadingLevel.HEADING_3 });
@@ -247,7 +256,12 @@ const RichTextEditor = ({ content, onChange, editable = true, docName = 'documen
     const blob = await Packer.toBlob(doc);
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = `${docName}.docx`; a.click();
+    a.href = url;
+    a.download = `${docName}.docx`;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
     URL.revokeObjectURL(url);
     setShowExportMenu(false);
   }, [editor, docName]);
@@ -257,7 +271,12 @@ const RichTextEditor = ({ content, onChange, editable = true, docName = 'documen
     const blob = new Blob([text], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = `${docName}.txt`; a.click();
+    a.href = url;
+    a.download = `${docName}.txt`;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
     URL.revokeObjectURL(url);
     setShowExportMenu(false);
   }, [editor, docName]);
