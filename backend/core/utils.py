@@ -3,11 +3,11 @@ import base64
 import json as _json
 from loguru import logger
 from cryptography.fernet import Fernet, InvalidToken
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from django.conf import settings
 
-_SECURE_KEY = b'docPlatformSecureKey2024!!!!!!!!'  # 32 bytes AES-256
+def _get_secure_key() -> bytes:
+    return getattr(settings, 'SECURE_AES_KEY', b'docPlatformSecureKey2024!!!!!!!!')
 
 
 def get_client_ip(request):
@@ -47,19 +47,11 @@ def encrypt_body(data: dict) -> str:
 
 
 def encrypt_secure(data: dict) -> str:
-    iv = os.urandom(16)
-    payload = _json.dumps(data).encode()
-    pad_len = 16 - len(payload) % 16
-    payload += bytes([pad_len] * pad_len)
-    encryptor = Cipher(algorithms.AES(_SECURE_KEY), modes.CBC(iv), backend=default_backend()).encryptor()
-    ciphertext = encryptor.update(payload) + encryptor.finalize()
-    return base64.b64encode(iv + ciphertext).decode()
+    nonce = os.urandom(12)
+    ciphertext = AESGCM(_get_secure_key()).encrypt(nonce, _json.dumps(data).encode(), None)
+    return base64.b64encode(nonce + ciphertext).decode()
 
 
 def decrypt_secure(data: str) -> dict:
     raw = base64.b64decode(data)
-    iv, ciphertext = raw[:16], raw[16:]
-    decryptor = Cipher(algorithms.AES(_SECURE_KEY), modes.CBC(iv), backend=default_backend()).decryptor()
-    plaintext = decryptor.update(ciphertext) + decryptor.finalize()
-    pad_len = plaintext[-1]
-    return _json.loads(plaintext[:-pad_len])
+    return _json.loads(AESGCM(_get_secure_key()).decrypt(raw[:12], raw[12:], None))

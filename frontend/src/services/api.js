@@ -72,7 +72,11 @@ export const generateShareLink = async (id, role) => {
     const payload = encryptPayload({ endpoint: 'generate_share_link', doc_id: id, role });
     const res = await api.post('/secure/', { payload });
     const decrypted = decryptPayload(res.data.data);
-    if (decrypted.error) throw { response: { data: decrypted } };
+    if (decrypted.error) {
+        const err = new Error(decrypted.error);
+        err.response = { data: decrypted };
+        throw err;
+    }
     return { data: decrypted };
 };
 export const getPublicDocument = (token) => axios.get(`${BASE_URL}/share/${token}/`);

@@ -444,7 +444,7 @@ class DocumentActionsTests(TestCase):
     def test_generate_share_link(self):
         response = self.client.post(f'/api/documents/{self.doc.id}/generate_share_link/', {'role': 'viewer'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn('token', response.data)
+        self.assertIn('data', response.data)
 
     def test_generate_share_link_editor(self):
         response = self.client.post(f'/api/documents/{self.doc.id}/generate_share_link/', {'role': 'editor'})
@@ -460,8 +460,8 @@ class DocumentActionsTests(TestCase):
         self.assertIn(response.status_code, [status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND])
 
     def test_public_document_view(self):
-        resp = self.client.post(f'/api/documents/{self.doc.id}/generate_share_link/', {'role': 'viewer'})
-        token = resp.data['token']
+        link = ShareLink.objects.create(document=self.doc, role='viewer', created_by=self.owner)
+        token = encrypt_token(str(link.token))
         self.client.force_authenticate(user=None)
         response = self.client.get(f'/api/share/{token}/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)

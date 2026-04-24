@@ -12,7 +12,6 @@ import {
   User,
   Check,
   X,
-  AlertTriangle
 } from 'lucide-react';
 import RichTextEditor from '../components/RichTextEditor';
 
@@ -69,13 +68,11 @@ const Editor = ({
   onBack,
   onSaveVersion,
   onRestoreVersion,
+  userRole,
   onUpdateDocName,
-  hasUnsavedChanges
 }) => {
   const [editingName, setEditingName] = useState(false);
   const [docName, setDocName] = useState(activeDoc?.name || '');
-  const [showExitModal, setShowExitModal] = useState(false);
-  const [exitAfterSave, setExitAfterSave] = useState(false);
 
   useEffect(() => {
     if (activeDoc) {
@@ -98,23 +95,8 @@ const Editor = ({
     if (e.key === 'Escape') { setDocName(activeDoc?.name || ''); setEditingName(false); }
   };
 
-  const handleBackClick = () => {
-    if (hasUnsavedChanges && isLockedByMe) { setShowExitModal(true); return; }
-    onBack();
-  };
-
-  const handleExitModalAction = async (action) => {
-    setShowExitModal(false);
-    if (action === 'save') { setExitAfterSave(true); setShowVersionModal(true); return; }
-    if (action === 'discard') { onBack(); }
-  };
-
   const handleSaveVersion = async (e) => {
     await onSaveVersion(e);
-    if (exitAfterSave) {
-      setExitAfterSave(false);
-      onBack();
-    }
   };
 
   return (
@@ -126,7 +108,7 @@ const Editor = ({
         {/* Left: back button + doc info */}
         <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
           <button
-            onClick={handleBackClick}
+            onClick={onBack}
             className="p-2 hover:bg-slate-100 rounded-full text-slate-600 shrink-0 touch-manipulation"
           >
             <ArrowLeft size={20} />
@@ -298,7 +280,8 @@ const Editor = ({
                     <div className="flex gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={() => onRestoreVersion(ver)}
-                        className="flex-1 text-[10px] font-bold py-2.5 bg-slate-900 text-white rounded-lg hover:bg-slate-800 touch-manipulation"
+                        disabled={userRole === 'lector'}
+                        className="flex-1 text-[10px] font-bold py-2.5 bg-slate-900 text-white rounded-lg hover:bg-slate-800 disabled:bg-slate-300 disabled:cursor-not-allowed touch-manipulation"
                       >
                         Restaurar
                       </button>
@@ -348,7 +331,7 @@ const Editor = ({
           <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-xl w-full sm:max-w-md overflow-hidden animate-in slide-in-from-bottom sm:fade-in sm:zoom-in duration-200">
             <div className="p-5 sm:p-6 border-b border-slate-100">
               <h3 className="text-lg font-bold text-slate-800">Publicar Nueva Versión</h3>
-              <p className="text-sm text-slate-500">Describa los cambios realizados en esta versión.</p>
+              <p className="text-sm text-slate-500">Describe los cambios (opcional).</p>
             </div>
             <form onSubmit={handleSaveVersion} className="p-5 sm:p-6">
               <div>
@@ -359,7 +342,7 @@ const Editor = ({
                   id="editor-version-note"
                   autoFocus
                   className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-medium text-slate-800 resize-none h-28 sm:h-32"
-                  placeholder="Ej. Se agregaron las conclusiones finales..."
+                  placeholder="Ej. Se agregaron las conclusiones finales... (opcional)"
                   value={versionNote}
                   onChange={(e) => setVersionNote(e.target.value)}
                 />
@@ -374,8 +357,7 @@ const Editor = ({
                 </button>
                 <button
                   type="submit"
-                  disabled={!versionNote.trim()}
-                  className="px-6 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-lg shadow-lg transition-all touch-manipulation"
+                  className="px-6 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-lg transition-all touch-manipulation"
                 >
                   Guardar Versión
                 </button>
@@ -385,34 +367,6 @@ const Editor = ({
         </div>
       )}
 
-      {/* ── Exit confirmation modal ── */}
-      {showExitModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/50 backdrop-blur-sm">
-          <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-xl w-full sm:max-w-md overflow-hidden animate-in slide-in-from-bottom sm:zoom-in duration-200">
-            <div className="p-6 text-center">
-              <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                <AlertTriangle size={32} />
-              </div>
-              <h3 className="text-lg font-bold text-slate-800 mb-2">¿Guardar cambios?</h3>
-              <p className="text-sm text-slate-500">Tienes cambios sin guardar. ¿Qué deseas hacer?</p>
-            </div>
-            <div className="flex gap-3 px-6 pb-6">
-              <button
-                onClick={() => handleExitModalAction('discard')}
-                className="flex-1 px-4 py-3 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors touch-manipulation"
-              >
-                Descartar
-              </button>
-              <button
-                onClick={() => handleExitModalAction('save')}
-                className="flex-1 px-4 py-3 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors touch-manipulation"
-              >
-                Guardar y Salir
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
@@ -435,8 +389,8 @@ Editor.propTypes = {
   onBack: PropTypes.func.isRequired,
   onSaveVersion: PropTypes.func.isRequired,
   onRestoreVersion: PropTypes.func.isRequired,
+  userRole: PropTypes.string,
   onUpdateDocName: PropTypes.func.isRequired,
-  hasUnsavedChanges: PropTypes.bool,
 };
 
 export { EditingBadge, ReadOnlyBadge };
