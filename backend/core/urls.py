@@ -1,4 +1,5 @@
 from django.urls import path, include
+from django.shortcuts import render
 from rest_framework.routers import DefaultRouter
 from .views import DocumentViewSet, UserViewSet, AuditLogViewSet, public_document_view, secure_endpoint
 from .authentication.views import login_view, register_view, refresh_token_view, profile_view, change_password_view
@@ -17,4 +18,6 @@ urlpatterns = [
     path('auth/change-password/', change_password_view),
     path('share/<str:token>/', public_document_view),
     path('secure/', secure_endpoint),
+    path('error/404/', lambda req: render(req, '404.html', status=404)),
+    path('error/500/', lambda req: render(req, '500.html', status=500)),
 ]
