@@ -27,6 +27,16 @@ import CreateDocumentModal from './components/CreateDocumentModal';
 import SplashScreen from './components/SplashScreen';
 import ProfileModal from './components/ProfileModal';
 import PublicViewer from './pages/PublicViewer';
+import NotFound from './pages/NotFound';
+
+const slugify = (str) =>
+  str.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+const getAppBase = () => {
+  const p = globalThis.location.pathname;
+  const idx = p.indexOf('/docM');
+  return idx >= 0 ? p.slice(0, idx + 5) : '/docM';
+};
 
 const App = () => {
   const [token, setToken] = useState(getAccessToken());
@@ -103,18 +113,16 @@ const App = () => {
   }, [token, fetchDocuments, fetchInvitations]);
 
   useEffect(() => {
-    const params = new URLSearchParams(globalThis.location.search);
-    const docId = params.get('doc');
-    if (docId && documents.length > 0 && token) {
-      const doc = documents.find(d => d.id === Number.parseInt(docId));
+    const match = globalThis.location.pathname.match(/\/docs\/([^/]+)/);
+    const docSlug = match ? match[1] : null;
+    if (docSlug && documents.length > 0 && token) {
+      const doc = documents.find(d => slugify(d.name) === docSlug);
       if (doc) {
         setSelectedDocId(doc.id);
         setCurrentText(doc.content);
         setView('editor');
         acquireLock(doc.id)
-          .then(() => {
-            setIsLockedByMe(true);
-          })
+          .then(() => { setIsLockedByMe(true); })
           .catch(err => {
             setIsLockedByMe(false);
             setLockMessage(err.response?.data?.message);
@@ -139,8 +147,28 @@ const App = () => {
       setTokens(accessToken, refreshToken);
       localStorage.setItem('user', JSON.stringify(userData));
       setIsTransitioning(false);
+      const redirect = sessionStorage.getItem('postLoginRedirect');
+      if (redirect) {
+        sessionStorage.removeItem('postLoginRedirect');
+        globalThis.history.pushState({}, '', redirect);
+      }
     }, 600);
   };
+
+  // Block back-button navigation to protected routes when logged out
+  useEffect(() => {
+    const handlePopState = () => {
+      if (!token) {
+        const path = globalThis.location.pathname.replace(getAppBase(), '').replace(/^\//, '');
+        const isProtected = path.startsWith('docs/') || path === 'documentos';
+        if (isProtected) {
+          globalThis.history.replaceState({}, '', `${getAppBase()}/inicio`);
+        }
+      }
+    };
+    globalThis.addEventListener('popstate', handlePopState);
+    return () => globalThis.removeEventListener('popstate', handlePopState);
+  }, [token]);
 
   const handleLogout = () => {
     setTransitionDirection('backward');
@@ -156,10 +184,35 @@ const App = () => {
       setCurrentUser(null);
       clearTokens();
       setView('dashboard');
+      globalThis.history.replaceState({}, '', `${getAppBase()}/inicio`);
       setIsTransitioning(false);
     };
     setTimeout(() => { void doLogout(); }, 600);
   };
+
+  // Sync URL → initial view on first load
+  useEffect(() => {
+    const path = globalThis.location.pathname.replace(getAppBase(), '').replace(/^\//, '');
+    if (path === 'registro' || path === 'register') setView('register');
+    const params = new URLSearchParams(globalThis.location.search);
+    if (params.get('view') === 'reset_password') setView('dashboard');
+    const KNOWN = ['', 'inicio', 'registro', 'documentos', 'login', 'register', 'dashboard'];
+    const isKnown = KNOWN.includes(path) || path.startsWith('docs/') || path.startsWith('view/');
+    if (!isKnown) setView('404');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Sync view/token → URL
+  useEffect(() => {
+    const path = globalThis.location.pathname;
+    if (path.includes('/docs/') || path.includes('/view/')) return;
+    const base = getAppBase();
+    if (!token) {
+      globalThis.history.replaceState({}, '', view === 'register' ? `${base}/registro` : `${base}/inicio`);
+    } else if (view === 'dashboard') {
+      globalThis.history.replaceState({}, '', `${base}/documentos`);
+    }
+  }, [view, token]);
 
   useEffect(() => {
     const params = new URLSearchParams(globalThis.location.search);
@@ -269,9 +322,7 @@ const App = () => {
     setCurrentText(doc.content);
     setOriginalText(doc.content);
 
-    const url = new URL(globalThis.location.href);
-    url.searchParams.set('doc', doc.id);
-    globalThis.history.pushState({}, '', url);
+    globalThis.history.pushState({}, '', `${getAppBase()}/docs/${slugify(doc.name)}`);
 
     try {
       await acquireLock(doc.id);
@@ -302,9 +353,7 @@ const App = () => {
     setSelectedDocId(null);
     setOriginalText('');
 
-    const url = new URL(globalThis.location.href);
-    url.searchParams.delete('doc');
-    globalThis.history.pushState({}, '', url);
+    globalThis.history.pushState({}, '', `${getAppBase()}/documentos`);
 
     setView('dashboard');
     fetchDocuments();
@@ -328,7 +377,6 @@ const App = () => {
 
   const handleVersionSubmit = async (e) => {
     e.preventDefault();
-    if (!versionNote.trim()) return;
 
     try {
       await saveVersion(activeDoc.id, { content: currentText, note: versionNote });
@@ -412,8 +460,11 @@ const App = () => {
     }
   };
 
+  if (view === '404') return <NotFound onGoHome={() => { setView('dashboard'); globalThis.history.pushState({}, '', `${getAppBase()}/inicio`); }} />;
+
   // Public share link — no auth needed
-  const shareToken = new URLSearchParams(globalThis.location.search).get('share');
+  const viewMatch = globalThis.location.pathname.match(/\/view\/([^/]+)/);
+  const shareToken = viewMatch ? viewMatch[1] : null;
   if (shareToken) {
     return <PublicViewer token={shareToken} />;
   }
@@ -425,7 +476,7 @@ const App = () => {
     return (
       <LandingPage
         onLogin={handleLogin}
-        onRegister={() => setView('register')}
+        onRegister={() => { setView('register'); }}
       />
     );
   }
@@ -465,6 +516,9 @@ const App = () => {
           onBack={() => setView('editor')}
         />
       );
+    }
+    if (!['dashboard', 'editor', 'compare'].includes(view)) {
+      return <NotFound onGoHome={() => setView('dashboard')} />;
     }
     return (
       <Dashboard

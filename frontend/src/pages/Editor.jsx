@@ -12,6 +12,7 @@ import {
   User,
   Check,
   X,
+  BookMarked,
 } from 'lucide-react';
 import RichTextEditor from '../components/RichTextEditor';
 
@@ -73,6 +74,8 @@ const Editor = ({
 }) => {
   const [editingName, setEditingName] = useState(false);
   const [docName, setDocName] = useState(activeDoc?.name || '');
+  const [showExitModal, setShowExitModal] = useState(false);
+  const [exitAfterSave, setExitAfterSave] = useState(false);
 
   useEffect(() => {
     if (activeDoc) {
@@ -97,6 +100,10 @@ const Editor = ({
 
   const handleSaveVersion = async (e) => {
     await onSaveVersion(e);
+    if (exitAfterSave) {
+      setExitAfterSave(false);
+      onBack();
+    }
   };
 
   return (
@@ -108,7 +115,7 @@ const Editor = ({
         {/* Left: back button + doc info */}
         <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
           <button
-            onClick={onBack}
+            onClick={() => setShowExitModal(true)}
             className="p-2 hover:bg-slate-100 rounded-full text-slate-600 shrink-0 touch-manipulation"
           >
             <ArrowLeft size={20} />
@@ -363,6 +370,35 @@ const Editor = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Exit modal ── */}
+      {showExitModal && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-xl w-full sm:max-w-md overflow-hidden animate-in slide-in-from-bottom sm:zoom-in duration-200">
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <BookMarked size={32} />
+              </div>
+              <h3 className="text-lg font-bold text-slate-800 mb-2">¿Publicar una versión?</h3>
+              <p className="text-sm text-slate-500">Los cambios se guardan automáticamente. Puedes publicar una versión para dejar un punto en el historial.</p>
+            </div>
+            <div className="flex gap-3 px-6 pb-6">
+              <button
+                onClick={() => { setShowExitModal(false); onBack(); }}
+                className="flex-1 px-4 py-3 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors touch-manipulation"
+              >
+                Solo salir
+              </button>
+              <button
+                onClick={() => { setShowExitModal(false); setExitAfterSave(true); setShowVersionModal(true); }}
+                className="flex-1 px-4 py-3 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors touch-manipulation"
+              >
+                Publicar y salir
+              </button>
+            </div>
           </div>
         </div>
       )}

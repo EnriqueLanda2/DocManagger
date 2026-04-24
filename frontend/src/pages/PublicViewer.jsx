@@ -1,8 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import DOMPurify from 'dompurify';
-import { Cloud, FileText, Eye } from 'lucide-react';
+import { Cloud, FileText, Eye, Pencil, LogIn, FolderOpen } from 'lucide-react';
 import { getPublicDocument } from '../services/api';
+import { getAccessToken } from '../utils/tokenUtils';
+
+const getAppBase = () => {
+  const p = window.location.pathname;
+  const idx = p.indexOf('/docM');
+  return idx >= 0 ? p.slice(0, idx + 5) : '/docM';
+};
+
+const slugify = (str) =>
+  str.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
 const PAGE_WIDTH_PX = 794;  // A4 at 96dpi
 const PAGE_HEIGHT_PX = 1123;
@@ -45,7 +55,19 @@ const PublicViewer = ({ token }) => {
     );
   }
 
+  const isEditor = doc.role === 'editor';
+  const isLoggedIn = !!getAccessToken();
+  const docUrl = `${getAppBase()}/docs/${slugify(doc.name)}`;
   const safeContent = DOMPurify.sanitize(doc.content || '');
+
+  const handleEditorAction = () => {
+    if (isLoggedIn) {
+      window.location.href = docUrl;
+    } else {
+      sessionStorage.setItem('postLoginRedirect', docUrl);
+      window.location.href = `${getAppBase()}/inicio`;
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col">
@@ -64,12 +86,38 @@ const PublicViewer = ({ token }) => {
               <span>·</span>
               <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-bold">{doc.version}</span>
             </div>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 text-xs font-bold">
-              <Eye size={12} /> Solo lectura
-            </span>
+            {isEditor ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-bold">
+                <Pencil size={12} /> Editor
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 text-xs font-bold">
+                <Eye size={12} /> Solo lectura
+              </span>
+            )}
           </div>
         </div>
       </div>
+
+      {/* Editor CTA banner */}
+      {isEditor && (
+        <div className="bg-blue-600 text-white py-3 px-4">
+          <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-sm">
+              <Pencil size={16} />
+              <span className="font-bold">Tienes acceso de editor a este documento.</span>
+              <span className="opacity-80 hidden sm:inline">Inicia sesión para editarlo.</span>
+            </div>
+            <button
+              onClick={handleEditorAction}
+              className="flex items-center gap-2 px-4 py-2 bg-white text-blue-700 rounded-xl text-xs font-black hover:bg-blue-50 transition-colors whitespace-nowrap"
+            >
+              {isLoggedIn ? <FolderOpen size={14} /> : <LogIn size={14} />}
+              {isLoggedIn ? 'Abrir para editar' : 'Iniciar sesión para editar'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Page canvas */}
       <div className="flex-1 overflow-auto py-10 flex justify-center">
@@ -102,7 +150,7 @@ const PublicViewer = ({ token }) => {
       </div>
 
       <p className="text-center text-[10px] text-slate-400 py-4 uppercase tracking-widest font-bold">
-        DocManager Pro · Solo lectura
+        DocManager Pro · {isEditor ? 'Acceso Editor' : 'Solo lectura'}
       </p>
     </div>
   );

@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     'rest_framework.authtoken',
     'rest_framework_simplejwt',
     'corsheaders',
+    'django_celery_beat',
     'core',
 ]
 
@@ -52,7 +53,7 @@ ROOT_URLCONF = 'doc_platform.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [os.path.join(BASE_DIR, 'templates')],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -188,4 +189,33 @@ SIMPLE_JWT = {
     'USER_ID_CLAIM': 'user_id',
     'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
     'LEEWAY': timedelta(seconds=30),
+}
+
+# --- CELERY CONFIGURATION ---
+CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = TIME_ZONE
+
+from celery.schedules import crontab
+
+CELERY_BEAT_SCHEDULE = {
+    'backup-full-weekly': {
+        'task': 'core.tasks.backup_full',
+        'schedule': crontab(hour=2, minute=0, day_of_week='sunday'),
+    },
+    'backup-differential': {
+        'task': 'core.tasks.backup_differential',
+        'schedule': crontab(hour=3, minute=0, day_of_week='tue,thu,sat'),
+    },
+    'backup-incremental': {
+        'task': 'core.tasks.backup_incremental',
+        'schedule': crontab(hour=4, minute=0, day_of_week='mon,wed,fri'),
+    },
+    'release-stale-locks': {
+        'task': 'core.tasks.release_stale_locks',
+        'schedule': 300.0, # Cada 5 minutos
+    },
 }

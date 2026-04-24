@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.utils import timezone
 import uuid
 
 
@@ -82,6 +83,23 @@ class AuditLog(models.Model):
 
     class Meta:
         ordering = ['-timestamp']
-
+        indexes = [
+            models.Index(fields=['-timestamp'], name='auditlog_timestamp_idx'),
+            models.Index(fields=['action'], name='auditlog_action_idx'),
+        ]
     def __str__(self):
         return f"{self.timestamp} | {self.user} | {self.action} | {self.host}"
+
+
+class BackupLog(models.Model):
+    BACKUP_TYPES = [('completo', 'Completo'), ('diferencial', 'Diferencial'), ('incremental', 'Incremental')]
+
+    type = models.CharField(max_length=20, choices=BACKUP_TYPES)
+    date = models.DateTimeField(default=timezone.now) # Cambiado para permitir simulación
+    filename = models.CharField(max_length=255)
+    size_kb = models.FloatField(default=0.0)
+    hash_sha256 = models.CharField(max_length=64, blank=True)
+    status = models.CharField(max_length=20, default='success') # success, failure
+
+    def __str__(self):
+        return f"{self.type} - {self.date} - {self.status}"
