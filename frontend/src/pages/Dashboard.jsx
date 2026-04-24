@@ -282,15 +282,44 @@ const Dashboard = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleDownload = (doc) => {
-    const blob = new Blob([doc.content || ''], { type: 'text/html;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${doc.name}.html`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success(`Descargando "${doc.name}"`);
+  const handleDownload = async (doc) => {
+    const toastId = toast.loading('Generando PDF...');
+    try {
+      const { default: html2canvas } = await import('html2canvas');
+      const { jsPDF } = await import('jspdf');
+      const { default: DOMPurify } = await import('dompurify');
+      const wrapper = document.createElement('div');
+      wrapper.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:794px;background:#fff;padding:48px;font-family:Georgia,serif;font-size:14px;line-height:1.8;color:#1a1a1a;';
+      const safe = DOMPurify.sanitize(doc.content || '');
+      const frag = document.createRange().createContextualFragment(safe);
+      wrapper.appendChild(frag);
+      document.body.appendChild(wrapper);
+      const canvas = await html2canvas(wrapper, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        onclone: (clonedDoc) => {
+          clonedDoc.querySelectorAll('link[rel="stylesheet"],style').forEach(el => el.remove());
+        },
+      });
+      document.body.removeChild(wrapper);
+      const pdf = new jsPDF({ unit: 'px', format: 'a4', orientation: 'portrait' });
+      const pdfW = pdf.internal.pageSize.getWidth();
+      const pdfH = pdf.internal.pageSize.getHeight();
+      const ratio = pdfW / canvas.width;
+      const imgH = canvas.height * ratio;
+      let y = 0;
+      while (y < imgH) {
+        if (y > 0) pdf.addPage();
+        pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, -y, pdfW, imgH);
+        y += pdfH;
+      }
+      pdf.save(`${doc.name}.pdf`);
+      toast.success('PDF descargado', { id: toastId });
+    } catch (err) {
+      console.error('PDF error:', err);
+      toast.error('Error al generar el PDF', { id: toastId });
+    }
   };
 
   if (isLoading && documents.length === 0) {
@@ -467,6 +496,7 @@ const Dashboard = ({
               pagination
               paginationPerPage={5}
               paginationRowsPerPageOptions={[5, 10, 20]}
+              paginationComponentOptions={{ rowsPerPageText: 'Filas por página:', rangeSeparatorText: 'de', noRowsPerPage: false, selectAllRowsItem: false }}
               highlightOnHover
               responsive
               noDataComponent={
@@ -522,8 +552,8 @@ const Dashboard = ({
           >
             <Download size={14} className="text-slate-400" />
             <div className="text-left">
-              <p className="font-bold text-xs">Descargar</p>
-              <p className="text-[10px] text-slate-400">Guardar como .html</p>
+              <p className="font-bold text-xs">Descargar PDF</p>
+              <p className="text-[10px] text-slate-400">Exportar como PDF</p>
             </div>
           </button>
           <div className="border-t border-slate-100 my-1" />
